@@ -1,0 +1,38 @@
+<resources>
+    <string name="app_name">Intare</string>
+
+    <!-- Server screen -->
+    <string name="title">Intare SMB Server</string>
+    <string name="status_stopped">SMB server stopped</string>
+    <string name="status_running">SMB server running</string>
+    <string name="status_running_fmt">SMB server running\n%1$s</string>
+    <string name="share_label">Share directory</string>
+    <string name="share_hint">e.g. /storage/emulated/0</string>
+    <string name="start_button">Start SMB server</string>
+    <string name="stop_button">Stop SMB server</string>
+
+    <!-- Storage permission -->
+    <string name="permission_missing">All-files access is required to share your storage.</string>
+    <string name="permission_button">Grant all-files access</string>
+    <string name="toast_permission_needed">Please grant all-files access first</string>
+
+    <!-- Notifications permission -->
+    <string name="notify_permission_rationale">Notifications show when the SMB server is running.</string>
+
+    <!-- Connected devices -->
+    <string name="connected_devices">Connected devices</string>
+    <string name="connected_devices_none">none</string>
+
+    <!-- Connection hint -->
+    <string name="hint_title">Connect from another device on the same network</string>
+    <string name="hint_macos">macOS: smb://%1$s:%2$d/%3$s</string>
+    <string name="hint_linux">Linux: smbclient -p %2$d -m NT1 //%1$s/%3$s</string>
+    <string name="hint_windows">Windows: net use Z: \\\\%1$s\\%3$s /TCPPORT:%2$d</string>
+    <string name="hint_guest">No password is required (guest access).</string>
+    <string name="hint_note">Note: SMB1 only, on a non-standard port (445 needs root).</string>
+
+    <!-- Toasts -->
+    <string name="started">SMB server started</string>
+    <string name="stopped">SMB server stopped</string>
+    <string name="start_failed">Could not start SMB server: %1$s</string>
+</resources>

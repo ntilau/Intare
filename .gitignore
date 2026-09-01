@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+/local.properties
+/gradle/wrapper/gradle-wrapper.jar.orig
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+.kotlin/
+
+# Output
+*.apk.idsig
+*.log
+
+# Signing — never commit keystores or signing secrets
+*.jks
+*.keystore
+keystore.properties

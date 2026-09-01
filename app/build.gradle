@@ -1,0 +1,77 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+}
+
+android {
+    namespace "io.intare"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "io.intare"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "0.1"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        coreLibraryDesugaringEnabled true
+    }
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+    packaging {
+        resources {
+            excludes += [
+                    'META-INF/AL2.0',
+                    'META-INF/LGPL2.1',
+                    'META-INF/LICENSE*',
+                    'META-INF/NOTICE*',
+                    'META-INF/**/constraintlayout-core/LICENSE.txt',
+                    'org/bouncycastle/pqc/**',
+                    'com/sun/jna/**'
+            ]
+        }
+    }
+}
+
+dependencies {
+    implementation "androidx.core:core-ktx:1.12.0"
+    implementation "androidx.appcompat:appcompat:1.6.1"
+    implementation "com.google.android.material:material:1.8.0"
+    implementation "androidx.constraintlayout:constraintlayout:2.1.4"
+
+    // SMB server library (JFileServer / JLAN), LGPL-3.0, SMB1 over TCP/IP SMB.
+    // Ships as a local jar built from buttercookie42/jfileserver@ff550a7 with a small
+    // buffer-overrun fix (see third_party/jfileserver/PATCHES.md). The transitive
+    // non-Android deps (hazelcast, bcprov-jdk15on, jna) are excluded by not pulling
+    // them in; bcprov/guava/slf4j are declared below as Android-compatible versions.
+    implementation files('libs/jfileserver.jar')
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.78'
+    implementation 'com.google.guava:guava:33.4.0-android'
+    implementation 'org.slf4j:slf4j-nop:2.0.9'
+
+    // mDNS (Bonjour) advertisement so the device shows up in Finder / Windows Network
+    // as a shared computer, advertising the SMB server on port 4450 (Apache-2.0).
+    implementation 'org.jmdns:jmdns:3.5.12'
+
+    // Backport java.nio.file / java.time used by JFileServer to older Android API levels
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.1'
+
+    testImplementation 'junit:junit:4.13.2'
+    // SMB1 client used only by the local end-to-end smoke test (host JVM)
+    testImplementation 'jcifs:jcifs:1.3.17'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}

@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+#
+# configure — one-time environment setup for the Intare Android project.
+#
+# Verifies the toolchain (JDK, Android SDK), writes local.properties if the SDK
+# is not yet configured, tries to install the SDK components the build needs, and
+# reports whether a device/emulator is reachable. Idempotent and safe to re-run.
+#
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$PROJECT_DIR"
+
+# --- Java -------------------------------------------------------------------
+# Android Gradle Plugin 8.2 requires JDK 17 or newer.
+if ! command -v java >/dev/null 2>&1; then
+    echo "ERROR: java not found. Install a JDK (17 or newer), e.g. brew install openjdk@17"
+    exit 1
+fi
+
+java_version="$(java -version 2>&1 | sed -n 's/.*version "\([^"]*\)".*/\1/p' | head -n1)"
+java_major="$(printf '%s' "$java_version" | awk -F'[._]' '{print ($1==1 ? $2 : $1)}')"
+echo "OK: Java $java_version"
+
+if [ -n "$java_major" ] && [ "$java_major" -lt 17 ] 2>/dev/null; then
+    echo "ERROR: JDK $java_major detected, but Android Gradle Plugin 8.2 needs JDK 17+."
+    echo "       Install a newer JDK or set JAVA_HOME, e.g."
+    echo "         JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null || echo '/path/to/jdk17') ./configure"
+    exit 1
+fi
+
+# --- Android SDK -------------------------------------------------------------
+# Resolve the SDK: ANDROID_HOME / ANDROID_SDK_ROOT, then local.properties,
+# then the usual macOS location.
+SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+if [ -z "$SDK_DIR" ] && [ -f local.properties ]; then
+    SDK_DIR="$(sed -n 's/^sdk\.dir=//p' local.properties | tr -d '\\')"
+fi
+if [ -z "$SDK_DIR" ] || [ ! -d "$SDK_DIR" ]; then
+    for candidate in "$HOME/Library/Android/sdk" "$HOME/Android/Sdk"; do
+        if [ -d "$candidate" ]; then SDK_DIR="$candidate"; break; fi
+    done
+fi
+
+if [ -z "$SDK_DIR" ] || [ ! -d "$SDK_DIR" ]; then
+    echo "ERROR: Android SDK not found. Install the command-line tools and either"
+    echo "         export ANDROID_HOME=/path/to/sdk"
+    echo "       or write local.properties with sdk.dir=/path/to/sdk"
+    exit 1
+fi
+
+# Write local.properties so Gradle finds the SDK even without ANDROID_HOME set.
+if ! grep -q '^sdk\.dir=' local.properties 2>/dev/null; then
+    printf 'sdk.dir=%s\n' "$SDK_DIR" >> local.properties
+    echo "Wrote local.properties: sdk.dir=$SDK_DIR"
+fi
+echo "OK: Android SDK at $SDK_DIR"
+
+# --- SDK components (best effort) -------------------------------------------
+SDKMANAGER=""
+if [ -d "$SDK_DIR/cmdline-tools" ]; then
+    for v in latest $(ls "$SDK_DIR/cmdline-tools" 2>/dev/null); do
+        if [ -x "$SDK_DIR/cmdline-tools/$v/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK_DIR/cmdline-tools/$v/bin/sdkmanager"
+            break
+        fi
+    done
+fi
+
+if [ -n "$SDKMANAGER" ]; then
+    # AGP 8.2 wants build-tools 34.0.0 and platform android-34. Accept licenses
+    # first (yes may die with SIGPIPE once sdkmanager stops reading, so || true),
+    # then install with stdin closed so no pipe is involved.
+    yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+    if "$SDKMANAGER" --install "build-tools;34.0.0" "platforms;android-34" </dev/null >/dev/null 2>&1; then
+        echo "OK: build-tools;34.0.0 and platforms;android-34 present"
+    else
+        echo "WARN: could not auto-install SDK components. Run manually if the build complains:"
+        echo "      yes | \"$SDKMANAGER\" --install \"build-tools;34.0.0\" \"platforms;android-34\""
+    fi
+else
+    echo "WARN: sdkmanager not found — install the Android command-line tools if the build needs them."
+fi
+
+# --- Gradle wrapper -----------------------------------------------------------
+if [ ! -x ./gradlew ]; then
+    echo "ERROR: ./gradlew missing. Restore it from git: git checkout gradlew"
+    exit 1
+fi
+echo "OK: Gradle wrapper present ($(sed -n 's/.*gradle-\([0-9.]*\).*/\1/p' gradle/wrapper/gradle-wrapper.properties))"
+
+# --- Device -------------------------------------------------------------------
+if command -v adb >/dev/null 2>&1; then
+    DEVICE="$(adb devices | awk 'NR>1 && $2=="device" {print $1; exit}')"
+    if [ -n "$DEVICE" ]; then
+        MODEL="$(adb -s "$DEVICE" shell getprop ro.product.model 2>/dev/null | tr -d '\r')"
+        echo "OK: device connected: $DEVICE${MODEL:+ ($MODEL)}"
+    else
+        echo "WARN: no device/emulator connected. Install the APK later with:"
+        echo "      adb install -r app/build/outputs/apk/debug/app-debug.apk"
+    fi
+else
+    echo "WARN: adb not found on PATH — install platform-tools to deploy to a device."
+fi
+
+echo
+echo "Configuration complete. Build with: ./gradlew :app:assembleDebug"

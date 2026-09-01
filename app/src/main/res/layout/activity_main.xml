@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/title"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="24dp" />
+
+        <TextView
+            android:id="@+id/status_textview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minLines="2"
+            android:text="@string/status_stopped"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:id="@+id/connected_textview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/share_label"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/share_path_edittext"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/share_hint"
+            android:inputType="text"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/start_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/start_button"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:id="@+id/permission_textview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/permission_missing"
+            android:textColor="#C0392B"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/permission_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/permission_button"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/hint_title"
+            android:textStyle="bold"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            android:id="@+id/hint_textview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:layout_marginTop="4dp" />
+    </LinearLayout>
+</ScrollView>
