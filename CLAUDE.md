@@ -83,6 +83,12 @@ adb shell am start -n io.intare/.MainActivity
   system kill restarts it. Do not add "stop on activity destroy" back — that contradicts
   the product model.
 - **jmdns needs slf4j** — satisfied by the existing `org.slf4j:slf4j-nop:2.0.9`.
+- **Battery optimization**: the server is a background service, so Doze/app standby can throttle
+  or kill it. `MainActivity` shows an "Allow unrestricted battery" banner (hidden once
+  `PowerManager.isIgnoringBatteryOptimizations()` is true) and opens
+  `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (falls back to the settings screen if the direct
+  intent isn't available). Declared via `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. That permission is
+  restricted on Google Play, but this app ships via GitHub releases so it's fine.
 - **Adaptive icon**: 108dp canvas, 66dp safe circle (corners must be ≤33dp from center).
   Current icon is a dark hard-drive glyph on a white rounded tile built with ImageMagick
   (see git history for the exact composite pipeline). Verify pixel output with

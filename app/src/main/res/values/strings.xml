@@ -19,6 +19,10 @@
     <!-- Notifications permission -->
     <string name="notify_permission_rationale">Notifications show when the SMB server is running.</string>
 
+    <!-- Battery optimization -->
+    <string name="battery_missing">Battery optimization may pause the server in the background. Allow unrestricted battery use.</string>
+    <string name="battery_button">Allow unrestricted battery</string>
+
     <!-- Connected devices -->
     <string name="connected_devices">Connected devices</string>
     <string name="connected_devices_none">none</string>

@@ -78,6 +78,23 @@
             android:layout_marginBottom="16dp" />
 
         <TextView
+            android:id="@+id/battery_textview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/battery_missing"
+            android:textColor="#C0392B"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/battery_button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/battery_button"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/hint_title"

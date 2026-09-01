@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.widget.Button;
@@ -39,6 +40,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView statusTextView;
     private TextView permissionTextView;
     private Button permissionButton;
+    private TextView batteryTextView;
+    private Button batteryButton;
     private TextView hintTextView;
     private TextView connectedTextView;
 
@@ -63,6 +66,8 @@ public class MainActivity extends AppCompatActivity {
         statusTextView = findViewById(R.id.status_textview);
         permissionTextView = findViewById(R.id.permission_textview);
         permissionButton = findViewById(R.id.permission_button);
+        batteryTextView = findViewById(R.id.battery_textview);
+        batteryButton = findViewById(R.id.battery_button);
         hintTextView = findViewById(R.id.hint_textview);
         connectedTextView = findViewById(R.id.connected_textview);
 
@@ -72,6 +77,7 @@ public class MainActivity extends AppCompatActivity {
 
         startButton.setOnClickListener(v -> onStartStopClicked());
         permissionButton.setOnClickListener(v -> requestAllFilesAccess());
+        batteryButton.setOnClickListener(v -> requestIgnoreBatteryOptimizations());
 
         requestNotificationPermissionIfNeeded();
     }
@@ -171,6 +177,10 @@ public class MainActivity extends AppCompatActivity {
         permissionTextView.setVisibility(storageOk ? android.view.View.GONE : android.view.View.VISIBLE);
         permissionButton.setVisibility(storageOk ? android.view.View.GONE : android.view.View.VISIBLE);
 
+        boolean batteryOk = isIgnoringBatteryOptimizations();
+        batteryTextView.setVisibility(batteryOk ? android.view.View.GONE : android.view.View.VISIBLE);
+        batteryButton.setVisibility(batteryOk ? android.view.View.GONE : android.view.View.VISIBLE);
+
         hintTextView.setText(buildHint());
         updateConnectedDevices();
     }
@@ -215,6 +225,30 @@ public class MainActivity extends AppCompatActivity {
         }
         return ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
                 == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * True if the system already exempts this app from battery optimization
+     * (Doze / app standby), so the background server isn't throttled or killed.
+     */
+    private boolean isIgnoringBatteryOptimizations() {
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        return pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+    }
+
+    /**
+     * Ask the user to grant the "unrestricted" battery exemption. The system shows
+     * a one-time dialog; the user must confirm. Falls back to the battery-optimization
+     * settings screen if the direct request intent isn't available on this device.
+     */
+    private void requestIgnoreBatteryOptimizations() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        } catch (Exception e) {
+            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+        }
     }
 
     private void requestAllFilesAccess() {
