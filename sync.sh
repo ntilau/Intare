@@ -8,6 +8,13 @@
 #   base_directory: base directory for local storage (default: $HOME)
 # The remote folder is assumed to be at /sdcard/<folder_name>
 # The local folder will be <base_directory>/<folder_name>
+#
+# Example: To sync /sdcard/DCIM/Camera to ~/DCIM/Camera:
+#   ./sync.sh DCIM/Camera
+#
+# Common mistake to avoid:
+#   DO NOT run: ./sync.sh DCIM/Camera $HOME/DCIM
+#   This will create ~/DCIM/DCIM/Camera instead of ~/DCIM/Camera
 
 # Default values
 FOLDER_NAME="${1:-DCIM}"
@@ -16,6 +23,32 @@ BASE_DIR="${2:-$HOME}"
 # Trim whitespace from arguments (helps prevent issues with accidental spaces)
 FOLDER_NAME="$(echo "$FOLDER_NAME" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 BASE_DIR="$(echo "$BASE_DIR" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+# Detect and correct a common mistake: if BASE_DIR ends with the first path component
+# of FOLDER_NAME, it likely means the user incorrectly included part of the path
+# in the base directory (e.g., running ./sync.sh DCIM/Camera $HOME/DCIM)
+# In this case, we correct BASE_DIR to prevent nested directory creation.
+if [[ "$FOLDER_NAME" == */* ]]; then
+    # FOLDER_NAME has at least one slash, extract first component
+    FIRST_COMPONENT="${FOLDER_NAME%%/*}"
+    # Check if BASE_DIR ends with /FIRST_COMPONENT or just FIRST_COMPONENT (no trailing slash)
+    if [[ "$BASE_DIR" == *"/$FIRST_COMPONENT" ]] || [[ "$BASE_DIR" == *"$FIRST_COMPONENT" && ! "$BASE_DIR" == */ ]]; then
+        # Remove the duplicated first component from BASE_DIR
+        if [[ "$BASE_DIR" == *"/$FIRST_COMPONENT" ]]; then
+            CORRECTED_BASE_DIR="${BASE_DIR%"/$FIRST_COMPONENT"}"
+        else
+            # Handle case where BASE_DIR is exactly the first component (unlikely but possible)
+            CORRECTED_BASE_DIR="$(dirname "$BASE_DIR")"
+        fi
+
+        # Only apply correction if it results in a non-empty path
+        if [[ -n "$CORRECTED_BASE_DIR" ]]; then
+            echo "Warning: Detected likely incorrect base directory '$BASE_DIR'"
+            echo "         Correcting to '$CORRECTED_BASE_DIR' to prevent nested directories"
+            BASE_DIR="$CORRECTED_BASE_DIR"
+        fi
+    fi
+fi
 
 # Define remote path (relative to /sdcard on Android)
 REMOTE_PATH="/sdcard/$FOLDER_NAME"
@@ -33,7 +66,9 @@ echo "Using rsync -rav equivalent behavior"
 if command -v adb &> /dev/null && adb get-state &> /dev/null; then
     echo "Using ADB connection (archive mode)..."
     # adb pull -a is equivalent to rsync -av (archive: recursive, preserve perms, times, etc.)
-    # Adding trailing slash to copy contents of directory rather than the directory itself
+    # IMPORTANT: We want to copy the CONTENTS of the remote directory to the local directory
+    # So we use "$REMOTE_PATH/" (with trailing slash) to indicate "contents of"
+    # And "$LOCAL_DIR/" (with trailing slash) to indicate "into this directory"
     adb pull -a "$REMOTE_PATH/" "$LOCAL_DIR/"
     if [ $? -eq 0 ]; then
         echo "Sync completed successfully via ADB (archive mode)!"
@@ -71,6 +106,7 @@ if [ -d "$MOUNT_POINT/$FOLDER_NAME" ]; then
     # Fallback to cp if rsync not available or failed
     echo "Syncing via cp (may not preserve all attributes)..."
     # Copy all files including hidden ones (excluding . and ..)
+    # We copy contents, not the directory itself, so we use wildcards
     cp -R "$MOUNT_POINT/$FOLDER_NAME"/* "$LOCAL_DIR/" 2>/dev/null || true
     cp -R "$MOUNT_POINT/$FOLDER_NAME"/.[!.]* "$LOCAL_DIR/" 2>/dev/null || true
     cp -R "$MOUNT_POINT/$FOLDER_NAME"/..?* "$LOCAL_DIR/" 2>/dev/null || true
