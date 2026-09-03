@@ -41,9 +41,56 @@ fi
 
 # Fallback to SMB
 echo "Attempting SMB connection..."
+
+# First, try using a pre-mounted share at /Volumes/Intare (common on macOS)
+MOUNT_POINT="/Volumes/Intare"
+if [ -d "$MOUNT_POINT/$FOLDER_NAME" ]; then
+    echo "Using pre-mounted SMB share at $MOUNT_POINT"
+
+    # Use rsync if available for best attribute preservation, otherwise use cp
+    if command -v rsync &> /dev/null; then
+        echo "Syncing via rsync (preserves timestamps, permissions, etc.)..."
+        rsync -av -- "$MOUNT_POINT/$FOLDER_NAME/" "$LOCAL_DIR/"
+        RSYNC_EXIT=$?
+        if [ $RSYNC_EXIT -eq 0 ]; then
+            FILE_COUNT=$(find "$LOCAL_DIR" -type f | wc -l)
+            echo "Sync completed successfully via mounted share (rsync)!"
+            echo "Folder synced to: $LOCAL_DIR"
+            echo "Transferred $FILE_COUNT files"
+            exit 0
+        else
+            echo "Rsync failed with exit code $RSYNC_EXIT, trying cp fallback..."
+        fi
+    fi
+
+    # Fallback to cp if rsync not available or failed
+    echo "Syncing via cp (may not preserve all attributes)..."
+    # Copy all files including hidden ones (excluding . and ..)
+    cp -R "$MOUNT_POINT/$FOLDER_NAME"/* "$LOCAL_DIR/" 2>/dev/null || true
+    cp -R "$MOUNT_POINT/$FOLDER_NAME"/.[!.]* "$LOCAL_DIR/" 2>/dev/null || true
+    cp -R "$MOUNT_POINT/$FOLDER_NAME"/..?* "$LOCAL_DIR/" 2>/dev/null || true
+
+    FILE_COUNT=$(find "$LOCAL_DIR" -type f | wc -l)
+    if [ "$FILE_COUNT" -gt 0 ]; then
+        echo "Sync completed successfully via mounted share (cp)!"
+        echo "Folder synced to: $LOCAL_DIR"
+        echo "Transferred $FILE_COUNT files"
+        echo "Note: cp may not preserve all file attributes like timestamps and permissions."
+        exit 0
+    else
+        echo "Warning: No files found in mounted share at $MOUNT_POINT/$FOLDER_NAME"
+        echo "Falling back to smbclient..."
+    fi
+else
+    echo "Pre-mounted share not found at $MOUNT_POINT/$FOLDER_NAME"
+    echo "Trying smbclient approach..."
+fi
+
+# Fallback to smbclient (original approach)
 if ! command -v smbclient &> /dev/null; then
     echo "Error: smbclient not found. Please install samba client utilities."
     echo "On Ubuntu/Debian: sudo apt install smbclient"
+    echo "On macOS: brew install samba"
     exit 1
 fi
 
@@ -70,14 +117,19 @@ cd "$LOCAL_DIR" || { echo "Failed to change to local directory"; exit 1; }
 # Additionally, set client min and max protocol to NT1 to ensure SMB1 only
 # We get all files (including hidden) by doing two mget passes: first for non-hidden, then for hidden (excluding . and ..)
 echo "Retrieving files from SMB share..."
-smbclient "$SMB_URI" -p "$SMB_PORT" -N -m NT1 --option="client min protocol=NT1" --option="client max protocol=NT1" -d 3 -c "
-    lcd .
-    cd $SMB_PATH
-    prompt off
-    recurse on
-    mget *
-    mget .[!.]* ..?*
+
+# Store the smbclient commands in a variable for better compatibility
+SMB_COMMANDS="
+lcd .
+cd $SMB_PATH
+prompt off
+recurse on
+mget *
+mget .[!.]* ..?*
 "
+
+# Run smbclient with the commands
+smbclient "$SMB_URI" -p "$SMB_PORT" -N -m NT1 --option="client min protocol=NT1" --option="client max protocol=NT1" -d 3 -c "$SMB_COMMANDS"
 
 # Check smbclient exit status more reliably by checking if we got any files
 FILE_COUNT=$(find . -type f | wc -l)
@@ -97,5 +149,8 @@ else
     echo "  1. Verify the folder exists on the device: check Intare app settings"
     echo "  2. Test manual access: smbclient //$SMB_HOST/$SMB_SHARE -U \"\" -p $SMB_PORT -c \"cd $SMB_PATH; ls\""
     echo "  3. Check that the Intare SMB server is running and showing as active"
+    echo ""
+    echo "Tip: On macOS, you can mount the share manually:"
+    echo "     mkdir -p /Volumes/Intare && mount_smbfs //guest@$SMB_HOST/$SMB_SHARE /Volumes/Intare"
     exit 1
 fi
