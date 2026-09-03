@@ -29,7 +29,8 @@ echo "Using rsync -rav equivalent behavior"
 if command -v adb &> /dev/null && adb get-state &> /dev/null; then
     echo "Using ADB connection (archive mode)..."
     # adb pull -a is equivalent to rsync -av (archive: recursive, preserve perms, times, etc.)
-    adb pull -a "$REMOTE_PATH" "$LOCAL_DIR"
+    # Adding trailing slash to copy contents of directory rather than the directory itself
+    adb pull -a "$REMOTE_PATH/" "$LOCAL_DIR/"
     if [ $? -eq 0 ]; then
         echo "Sync completed successfully via ADB (archive mode)!"
         echo "Folder synced to: $LOCAL_DIR"
