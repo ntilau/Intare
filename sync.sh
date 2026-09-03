@@ -67,7 +67,8 @@ cd "$LOCAL_DIR" || { echo "Failed to change to local directory"; exit 1; }
 # smbclient's 'get' preserves modification time; we rely on that.
 # We'll use mget with prompt off and recurse on for recursive copy.
 # Using -N for no password (guest access) and -m NT1 for SMB1 protocol
-smbclient "$SMB_URI" -p "$SMB_PORT" -N -m NT1 -d 1 -c "
+# Additionally, set client min and max protocol to NT1 to ensure SMB1 only
+smbclient "$SMB_URI" -p "$SMB_PORT" -N -m NT1 --option="client min protocol=NT1" --option="client max protocol=NT1" -d 1 -c "
     lcd .
     cd $SMB_PATH
     prompt off
