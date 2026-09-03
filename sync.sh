@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# Script to sync a folder from Android device to local machine
+# Tries ADB first, falls back to SMB if ADB not available
+# Performs equivalent of rsync -rav (recursive, verbose, preserve attributes)
+# Usage: ./sync.sh [folder_name] [base_directory]
+#   folder_name: name of the folder to sync (default: DCIM)
+#   base_directory: base directory for local storage (default: $HOME)
+# The remote folder is assumed to be at /sdcard/<folder_name>
+# The local folder will be <base_directory>/<folder_name>
+
+# Default values
+FOLDER_NAME="${1:-DCIM}"
+BASE_DIR="${2:-$HOME}"
+
+# Define remote path (relative to /sdcard on Android)
+REMOTE_PATH="/sdcard/$FOLDER_NAME"
+
+# Define local directory as base directory + folder name
+LOCAL_DIR="$BASE_DIR/$FOLDER_NAME"
+
+# Create local directory if it doesn't exist
+mkdir -p "$LOCAL_DIR"
+
+echo "Syncing '$REMOTE_PATH' from device to '$LOCAL_DIR'"
+echo "Using rsync -rav equivalent behavior"
+
+# Try ADB first
+if command -v adb &> /dev/null && adb get-state &> /dev/null; then
+    echo "Using ADB connection (archive mode)..."
+    # adb pull -a is equivalent to rsync -av (archive: recursive, preserve perms, times, etc.)
+    adb pull -a "$REMOTE_PATH" "$LOCAL_DIR"
+    if [ $? -eq 0 ]; then
+        echo "Sync completed successfully via ADB (archive mode)!"
+        echo "Folder synced to: $LOCAL_DIR"
+        exit 0
+    else
+        echo "ADB sync failed, falling back to SMB..."
+    fi
+fi
+
+# Fallback to SMB
+echo "Attempting SMB connection..."
+if ! command -v smbclient &> /dev/null; then
+    echo "Error: smbclient not found. Please install samba client utilities."
+    echo "On Ubuntu/Debian: sudo apt install smbclient"
+    exit 1
+fi
+
+# SMB server details (from Intare app)
+SMB_HOST="INTARE.local"
+SMB_PORT="4450"
+SMB_SHARE="Intare"
+SMB_PATH="$SMB_SHARE/$FOLDER_NAME"  # Folder within the share
+
+# Build the SMB URI
+SMB_URI="//${SMB_HOST}/${SMB_SHARE}"
+
+echo "Connecting to SMB share: $SMB_URI (port $SMB_PORT)"
+echo "Accessing path: $SMB_PATH"
+
+# Use smbclient to copy the folder recursively with verbose output
+# We'll change to the local directory and use smbclient to get files
+cd "$LOCAL_DIR" || { echo "Failed to change to local directory"; exit 1; }
+
+# Enable verbose mode via debug level 1 and preserve timestamps where possible
+# smbclient's 'get' preserves modification time; we rely on that.
+# We'll use mget with prompt off and recurse on for recursive copy.
+smbclient "$SMB_URI" -p "$SMB_PORT" -U "" -d 1 -c "
+    lcd .
+    cd $SMB_PATH
+    prompt off
+    recurse on
+    mget *
+"
+
+# Check if any files were retrieved
+if [ "$(ls -A)" ]; then
+    echo "Sync completed successfully via SMB!"
+    echo "Folder synced to: $LOCAL_DIR"
+    echo "Note: SMB transfer preserves timestamps but may not preserve all permissions."
+else
+    echo "Error: No files retrieved via SMB. Check that:"
+    echo "  1. The Intare SMB server is running on the device"
+    echo "  2. The device is on the same network and discoverable as $SMB_HOST"
+    echo "  3. Port $SMB_PORT is accessible"
+    echo "  4. Share '$SMB_SHARE' is available (guest access)"
+    echo "  5. Folder '$FOLDER_NAME' exists in the share"
+    exit 1
+fi
