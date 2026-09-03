@@ -69,7 +69,7 @@ if command -v adb &> /dev/null && adb get-state &> /dev/null; then
     # IMPORTANT: We want to copy the CONTENTS of the remote directory to the local directory
     # So we use "$REMOTE_PATH/" (with trailing slash) to indicate "contents of"
     # And "$LOCAL_DIR/" (with trailing slash) to indicate "into this directory"
-    adb pull -a "$REMOTE_PATH/" "$LOCAL_DIR/"
+    adb pull -a "$REMOTE_PATH/" "$BASE_DIR/"
     if [ $? -eq 0 ]; then
         echo "Sync completed successfully via ADB (archive mode)!"
         echo "Folder synced to: $LOCAL_DIR"
