@@ -94,6 +94,33 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
    with an active session. The phone beeps once when a device connects and once
    when it disconnects, so you notice activity without looking at the screen.
 
+### Syncing files from device
+
+To easily sync folders (like DCIM) from your Android device to your computer, use the provided `sync.sh` script:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/ntilau/Intare/refs/heads/main/sync.sh)"
+```
+
+This script:
+- Tries ADB connection first (when device is connected via USB)
+- Falls back to SMB when ADB is not available
+- Preserves file attributes (equivalent to `rsync -rav`)
+- Works with any folder name (default: DCIM)
+- Accepts custom base directory (default: $HOME)
+
+Usage examples:
+```bash
+# Sync DCIM folder to ~/DCIM (default)
+./sync.sh
+
+# Sync Pictures folder to ~/Pictures
+./sync.sh Pictures
+
+# Sync Documents folder to custom location
+./sync.sh Documents /backup/storage
+```
+
 To verify the server is listening and advertised:
 
 ```bash
