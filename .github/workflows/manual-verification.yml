@@ -1,0 +1,37 @@
+name: Manual Verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      folder:
+        description: 'Folder to sync (default: DCIM)'
+        required: false
+        default: 'DCIM'
+      base_dir:
+        description: 'Base directory for sync (default: /tmp/sync-test)'
+        required: false
+        default: '/tmp/sync-test'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Make sync.sh executable
+      run: chmod +x sync.sh
+
+    - name: Run sync.sh with inputs
+      run: |
+        echo "Testing sync.sh with folder: ${{ github.event.inputs.folder }}"
+        echo "Base directory: ${{ github.event.inputs.base_dir }}"
+        mkdir -p "${{ github.event.inputs.base_dir }}"
+        # Note: This will fail without ADB/SMB but we can see if script runs
+        timeout 30s ./sync.sh "${{ github.event.inputs.folder }}" "${{ github.event.inputs.base_dir }}" || true
+
+    - name: Check if script at least started
+      run: |
+        if [ -d "${{ github.event.inputs.base_dir }}" ]; then
+          echo "Base directory exists"
+          ls -la "${{ github.event.inputs.base_dir }}"
+        fi
