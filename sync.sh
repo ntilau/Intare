@@ -69,7 +69,8 @@ cd "$LOCAL_DIR" || { echo "Failed to change to local directory"; exit 1; }
 # Using -N for no password (guest access) and -m NT1 for SMB1 protocol
 # Additionally, set client min and max protocol to NT1 to ensure SMB1 only
 # We get all files (including hidden) by doing two mget passes: first for non-hidden, then for hidden (excluding . and ..)
-smbclient "$SMB_URI" -p "$SMB_PORT" -N -m NT1 --option="client min protocol=NT1" --option="client max protocol=NT1" -d 1 -c "
+echo "Retrieving files from SMB share..."
+smbclient "$SMB_URI" -p "$SMB_PORT" -N -m NT1 --option="client min protocol=NT1" --option="client max protocol=NT1" -d 3 -c "
     lcd .
     cd $SMB_PATH
     prompt off
@@ -78,17 +79,23 @@ smbclient "$SMB_URI" -p "$SMB_PORT" -N -m NT1 --option="client min protocol=NT1"
     mget .[!.]* ..?*
 "
 
-# Check if any files were retrieved
-if [ "$(ls -A)" ]; then
+# Check smbclient exit status more reliably by checking if we got any files
+FILE_COUNT=$(find . -type f | wc -l)
+if [ "$FILE_COUNT" -gt 0 ]; then
     echo "Sync completed successfully via SMB!"
     echo "Folder synced to: $LOCAL_DIR"
+    echo "Transferred $FILE_COUNT files"
     echo "Note: SMB transfer preserves timestamps but may not preserve all permissions."
 else
-    echo "Error: No files retrieved via SMB. Check that:"
-    echo "  1. The Intare SMB server is running on the device"
-    echo "  2. The device is on the same network and discoverable as $SMB_HOST"
-    echo "  3. Port $SMB_PORT is accessible"
-    echo "  4. Share '$SMB_SHARE' is available (guest access)"
-    echo "  5. Folder '$FOLDER_NAME' exists in the share"
+    echo "Warning: No files were transferred via SMB."
+    echo "This could mean:"
+    echo "  1. The remote folder '$SMB_PATH' is empty"
+    echo "  2. There are no files matching the retrieval patterns"
+    echo "  3. The share exists but access to the folder is restricted"
+    echo ""
+    echo "To troubleshoot:"
+    echo "  1. Verify the folder exists on the device: check Intare app settings"
+    echo "  2. Test manual access: smbclient //$SMB_HOST/$SMB_SHARE -U \"\" -p $SMB_PORT -c \"cd $SMB_PATH; ls\""
+    echo "  3. Check that the Intare SMB server is running and showing as active"
     exit 1
 fi
