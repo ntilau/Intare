@@ -91,11 +91,19 @@ else
     echo "Trying smbclient approach..."
 fi
 
+# Check if we're on macOS - if so, skip smbclient fallback
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    echo "On macOS, skipping smbclient fallback."
+    echo "If you need to sync files, please:"
+    echo "  1. Ensure ADB is working, or"
+    echo "  2. Manually mount the SMB share at /Volumes/Intare"
+    exit 1
+fi
+
 # Fallback to smbclient (original approach)
 if ! command -v smbclient &> /dev/null; then
     echo "Error: smbclient not found. Please install samba client utilities."
     echo "On Ubuntu/Debian: sudo apt install smbclient"
-    echo "On macOS: brew install samba"
     exit 1
 fi
 
