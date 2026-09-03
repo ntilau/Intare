@@ -13,6 +13,10 @@
 FOLDER_NAME="${1:-DCIM}"
 BASE_DIR="${2:-$HOME}"
 
+# Trim whitespace from arguments (helps prevent issues with accidental spaces)
+FOLDER_NAME="$(echo "$FOLDER_NAME" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+BASE_DIR="$(echo "$BASE_DIR" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
 # Define remote path (relative to /sdcard on Android)
 REMOTE_PATH="/sdcard/$FOLDER_NAME"
 
