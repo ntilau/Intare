@@ -10,6 +10,7 @@ import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.os.Environment;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
@@ -60,6 +61,13 @@ public class SmbService extends Service {
     private final Map<String, Long> mLastBeepAt = new ConcurrentHashMap<>();
     private ToneGenerator mToneGen;
 
+    /** WakeLock to keep CPU awake during active SMB sessions. */
+    private PowerManager.WakeLock mWakeLock;
+
+    /** Counter for active SMB sessions to manage WakeLock acquisition/release. */
+    private int mActiveSessionCount = 0;
+    private final Object mSessionCountLock = new Object();
+
     public static boolean isRunning() {
         return sRunning;
     }
@@ -79,6 +87,7 @@ public class SmbService extends Service {
         }
         Log.i(TAG, "Session activated: " + address);
         playTone(ToneGenerator.TONE_PROP_BEEP2);
+        acquireWakeLockIfNeeded(); // Keep CPU awake during active session
     }
 
     /** Beep when a mounted device goes away (its SMB session closed). */
@@ -88,6 +97,7 @@ public class SmbService extends Service {
         }
         Log.i(TAG, "Session closed: " + address);
         playTone(ToneGenerator.TONE_PROP_BEEP);
+        releaseWakeLockIfNeeded(); // Release CPU lock when session ends
     }
 
     /** True if this address beeped within the debounce window (no second beep yet). */
@@ -98,7 +108,40 @@ public class SmbService extends Service {
             return true;
         }
         mLastBeepAt.put(key, now);
+        // Clean up old entries to prevent indefinite growth
+        cleanupBeepMap();
         return false;
+    }
+
+    /** Remove beep timestamp entries older than 1 hour to prevent map from growing indefinitely. */
+    private void cleanupBeepMap() {
+        long now = System.currentTimeMillis();
+        long cutoff = now - 3600000; // 1 hour
+        mLastBeepAt.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+    }
+
+    /** Acquire WakeLock if this is the first active session. */
+    private void acquireWakeLockIfNeeded() {
+        synchronized (mSessionCountLock) {
+            mActiveSessionCount++;
+            if (mActiveSessionCount == 1 && mWakeLock != null) {
+                mWakeLock.acquire();
+                Log.i(TAG, "WakeLock acquired for active SMB session");
+            }
+        }
+    }
+
+    /** Release WakeLock if this was the last active session. */
+    private void releaseWakeLockIfNeeded() {
+        synchronized (mSessionCountLock) {
+            if (mActiveSessionCount > 0) {
+                mActiveSessionCount--;
+                if (mActiveSessionCount == 0 && mWakeLock != null && mWakeLock.isHeld()) {
+                    mWakeLock.release();
+                    Log.i(TAG, "WakeLock released - no active SMB sessions");
+                }
+            }
+        }
     }
 
     /**
@@ -122,6 +165,12 @@ public class SmbService extends Service {
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
+        // Initialize WakeLock for keeping CPU awake during active SMB sessions
+        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        if (powerManager != null) {
+            mWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Intare::SmbServiceWakeLock");
+            mWakeLock.setReferenceCounted(true);
+        }
     }
 
     @Override
@@ -193,6 +242,19 @@ public class SmbService extends Service {
             } catch (Exception e) {
                 Log.e(TAG, "Failed to start SMB server", e);
                 sRunning = false;
+                // Clean up partially started resources
+                if (mMdns != null) {
+                    mMdns.stop();
+                    mMdns = null;
+                }
+                if (mServer != null) {
+                    try {
+                        mServer.stop();
+                    } catch (Exception ex) {
+                        Log.w(TAG, "Error stopping SMB server after failed start", ex);
+                    }
+                    mServer = null;
+                }
                 stopForeground(STOP_FOREGROUND_REMOVE);
                 stopSelf();
             }
@@ -206,18 +268,27 @@ public class SmbService extends Service {
         sRunning = false;
         sActiveServer = null;
         mLastBeepAt.clear();
-        if (mToneGen != null) {
-            mToneGen.release();
-            mToneGen = null;
+        synchronized (this) {
+            if (mToneGen != null) {
+                mToneGen.release();
+                mToneGen = null;
+            }
+        }
+        // Release WakeLock if held
+        if (mWakeLock != null && mWakeLock.isHeld()) {
+            mWakeLock.release();
+            Log.i(TAG, "WakeLock released in onDestroy");
         }
         if (mMdns != null) {
             mMdns.stop();
             mMdns = null;
         }
         if (mServerThread != null) {
+            mServerThread.interrupt();
             try {
-                mServerThread.join(500);
-            } catch (InterruptedException ignored) {
+                mServerThread.join(1000); // Increased timeout
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Restore interrupt status
             }
         }
         if (mServer != null) {

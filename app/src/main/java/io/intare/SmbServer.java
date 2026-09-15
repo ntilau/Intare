@@ -131,114 +131,124 @@ public class SmbServer {
             return;
         }
 
-        mConfig = new ServerConfiguration(serverName);
+        try {
+            mConfig = new ServerConfiguration(serverName);
 
-        // Debug: route JFileServer output to logcat at Debug level
-        DebugConfigSection debugConfig = new DebugConfigSection(mConfig);
-        debugConfig.setDebug("io.intare.LogcatDebug", new GenericConfigElement("debug"));
+            // Debug: route JFileServer output to logcat at Debug level
+            DebugConfigSection debugConfig = new DebugConfigSection(mConfig);
+            debugConfig.setDebug("io.intare.LogcatDebug", new GenericConfigElement("debug"));
 
-        // Core: memory + thread pools
-        CoreServerConfigSection coreConfig = new CoreServerConfigSection(mConfig);
-        coreConfig.setMemoryPool(MEMORY_POOL_SIZES, MEMORY_POOL_INIT, MEMORY_POOL_MAX);
-        coreConfig.setThreadPool(6, 6);
-        coreConfig.getThreadPool().setDebug(false);
+            // Core: memory + thread pools
+            CoreServerConfigSection coreConfig = new CoreServerConfigSection(mConfig);
+            coreConfig.setMemoryPool(MEMORY_POOL_SIZES, MEMORY_POOL_INIT, MEMORY_POOL_MAX);
+            coreConfig.setThreadPool(6, 6);
+            coreConfig.getThreadPool().setDebug(false);
 
-        // Global
-        new GlobalConfigSection(mConfig);
+            // Global
+            new GlobalConfigSection(mConfig);
 
-        // Security: guest access, empty account list
-        SecurityConfigSection secConfig = new SecurityConfigSection(mConfig);
-        DefaultAccessControlManager aclManager = new DefaultAccessControlManager();
-        aclManager.setDebug(false);
-        aclManager.initialize(mConfig, new GenericConfigElement("aclManager"));
-        secConfig.setAccessControlManager(aclManager);
-        secConfig.setUserAccounts(new UserAccountList());
+            // Security: guest access, empty account list
+            SecurityConfigSection secConfig = new SecurityConfigSection(mConfig);
+            DefaultAccessControlManager aclManager = new DefaultAccessControlManager();
+            aclManager.setDebug(false);
+            aclManager.initialize(mConfig, new GenericConfigElement("aclManager"));
+            secConfig.setAccessControlManager(aclManager);
+            secConfig.setUserAccounts(new UserAccountList());
 
-        // Filesystem: one disk share rooted at sharePath
-        FilesystemsConfigSection filesysConfig = new FilesystemsConfigSection(mConfig);
-        addShare(filesysConfig, secConfig, mConfig, new File(sharePath));
+            // Filesystem: one disk share rooted at sharePath
+            FilesystemsConfigSection filesysConfig = new FilesystemsConfigSection(mConfig);
+            addShare(filesysConfig, secConfig, mConfig, new File(sharePath));
 
-        // SMB transport: direct TCP/IP SMB only (no NetBIOS - it would need privileged ports)
-        SMBConfigSection smbConfig = new SMBConfigSection(mConfig);
-        smbConfig.setServerName(serverName);
-        smbConfig.setDomainName("WORKGROUP");
-        smbConfig.setNetBIOSSMB(false);
-        smbConfig.setTcpipSMB(true);
-        smbConfig.setTcpipSMBPort(SMB_PORT);
-        smbConfig.setHostAnnouncer(false);
-        // Errors and connection state only (the per-search / per-transaction
-        // debug flags were used to diagnose macOS smbfs enumeration and would
-        // otherwise flood logcat on large listings).
-        smbConfig.setSessionDebugFlags(EnumSet.of(
-                SMBSrvSession.Dbg.STATE,
-                SMBSrvSession.Dbg.ERROR));
+            // SMB transport: direct TCP/IP SMB only (no NetBIOS - it would need privileged ports)
+            SMBConfigSection smbConfig = new SMBConfigSection(mConfig);
+            smbConfig.setServerName(serverName);
+            smbConfig.setDomainName("WORKGROUP");
+            smbConfig.setNetBIOSSMB(false);
+            smbConfig.setTcpipSMB(true);
+            smbConfig.setTcpipSMBPort(SMB_PORT);
+            smbConfig.setHostAnnouncer(false);
+            // Errors and connection state only (the per-search / per-transaction
+            // debug flags were used to diagnose macOS smbfs enumeration and would
+            // otherwise flood logcat on large listings).
+            smbConfig.setSessionDebugFlags(EnumSet.of(
+                    SMBSrvSession.Dbg.STATE,
+                    SMBSrvSession.Dbg.ERROR));
 
-        // Android API level workarounds (same as SimbaDroid):
-        // - NIO sockets need java.time/nio backports that core lib desugaring can't fully provide below N
-        // - the hashed open file map relies on ConcurrentHashMap.keySet() that changed in Java 8
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            smbConfig.setDisableNIOCode(true);
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            smbConfig.setDisableHashedOpenFileMap(true);
-        }
-
-        // Accept any credentials (guest access)
-        LocalAuthenticator authenticator = new LocalAuthenticator() {
-            @Override
-            public AuthStatus authenticateUser(ClientInfo client, SrvSession sess, PasswordAlgorithm alg) {
-                return AuthStatus.AUTHENTICATED;
+            // Android API level workarounds (same as SimbaDroid):
+            // - NIO sockets need java.time/nio backports that core lib desugaring can't fully provide below N
+            // - the hashed open file map relies on ConcurrentHashMap.keySet() that changed in Java 8
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+                smbConfig.setDisableNIOCode(true);
             }
-        };
-        authenticator.setDebug(false);
-        authenticator.setAllowGuest(true);
-        authenticator.setAccessMode(ISMBAuthenticator.AuthMode.USER);
-        authenticator.initialize(mConfig, new GenericConfigElement("authenticator"));
-        smbConfig.setAuthenticator(authenticator);
-
-        mSmbServer = new SMBServer(mConfig);
-        mConfig.addServer(mSmbServer);
-
-        // Forward SMB session lifecycle events (activated = logged on, deactivated =
-        // session closed) so the owner can be alerted when a device mounts/unmounts.
-        mSmbServer.addSessionListener(new SessionListener() {
-            @Override
-            public void sessionCreated(SrvSession session) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                smbConfig.setDisableHashedOpenFileMap(true);
             }
 
-            @Override
-            public void sessionLoggedOn(SrvSession session) {
-                mActivatedSessions.add(session.getSessionId());
-                SessionEventListener listener = mSessionEventListener;
-                if (listener != null) {
-                    listener.onSessionActivated(addressOf(session));
+            // Accept any credentials (guest access)
+            LocalAuthenticator authenticator = new LocalAuthenticator() {
+                @Override
+                public AuthStatus authenticateUser(ClientInfo client, SrvSession sess, PasswordAlgorithm alg) {
+                    return AuthStatus.AUTHENTICATED;
                 }
-            }
+            };
+            authenticator.setDebug(false);
+            authenticator.setAllowGuest(true);
+            authenticator.setAccessMode(ISMBAuthenticator.AuthMode.USER);
+            authenticator.initialize(mConfig, new GenericConfigElement("authenticator"));
+            smbConfig.setAuthenticator(authenticator);
 
-            @Override
-            public void sessionClosed(SrvSession session) {
-                // Only report closures of sessions that actually activated, so a bare
-                // TCP probe that never logged on doesn't produce a "disconnected" alert.
-                if (mActivatedSessions.remove(session.getSessionId())) {
+            mSmbServer = new SMBServer(mConfig);
+            mConfig.addServer(mSmbServer);
+
+            // Forward SMB session lifecycle events (activated = logged on, deactivated =
+            // session closed) so the owner can be alerted when a device mounts/unmounts.
+            mSmbServer.addSessionListener(new SessionListener() {
+                @Override
+                public void sessionCreated(SrvSession session) {
+                }
+
+                @Override
+                public void sessionLoggedOn(SrvSession session) {
+                    mActivatedSessions.add(session.getSessionId());
                     SessionEventListener listener = mSessionEventListener;
                     if (listener != null) {
-                        listener.onSessionClosed(addressOf(session));
+                        listener.onSessionActivated(addressOf(session));
                     }
                 }
-            }
-        });
 
-        mSmbServer.startServer();
-        mStarted = true;
-        Log.i(TAG, "SMB server started on port " + SMB_PORT + ", sharing " + sharePath);
+                @Override
+                public void sessionClosed(SrvSession session) {
+                    // Only report closures of sessions that actually activated, so a bare
+                    // TCP probe that never logged on doesn't produce a "disconnected" alert.
+                    if (mActivatedSessions.remove(session.getSessionId())) {
+                        SessionEventListener listener = mSessionEventListener;
+                        if (listener != null) {
+                            listener.onSessionClosed(addressOf(session));
+                        }
+                    }
+                }
+            });
+
+            mSmbServer.startServer();
+            mStarted = true;
+            Log.i(TAG, "SMB server started on port " + SMB_PORT + ", sharing " + sharePath);
+        } catch (Exception e) {
+            // Clean up any partially allocated resources
+            try {
+                stop(); // Attempt to clean up what we can
+            } catch (Exception ex) {
+                Log.w(TAG, "Error cleaning up after start failure", ex);
+            }
+            throw e; // Re-throw original exception
+        }
     }
 
     public synchronized void stop() {
-        if (!mStarted) {
-            return;
-        }
+        // Always attempt cleanup, even if !mStarted (handles partial initialization failures)
         try {
-            mSmbServer.shutdownServer(false);
+            if (mSmbServer != null) {
+                mSmbServer.shutdownServer(false);
+            }
         } catch (Exception ex) {
             Log.w(TAG, "Error shutting down SMB server", ex);
         } finally {
