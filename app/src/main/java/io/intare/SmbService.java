@@ -82,22 +82,26 @@ public class SmbService extends Service {
 
     /** Beep when a device mounts the share (its SMB session activated). */
     private void beepOnActivation(String address) {
+        // Always manage WakeLock for session tracking, regardless of debounce
+        acquireWakeLockIfNeeded(); // Keep CPU awake during active session
+
         if (debounced(address)) {
-            return;
+            return;  // Only prevent beeping, not WakeLock management
         }
         Log.i(TAG, "Session activated: " + address);
         playTone(ToneGenerator.TONE_PROP_BEEP2);
-        acquireWakeLockIfNeeded(); // Keep CPU awake during active session
     }
 
     /** Beep when a mounted device goes away (its SMB session closed). */
     private void beepOnDeactivation(String address) {
+        // Always manage WakeLock for session tracking, regardless of debounce
+        releaseWakeLockIfNeeded(); // Release CPU lock when session ends
+
         if (debounced(address)) {
-            return;
+            return;  // Only prevent beeping, not WakeLock management
         }
         Log.i(TAG, "Session closed: " + address);
         playTone(ToneGenerator.TONE_PROP_BEEP);
-        releaseWakeLockIfNeeded(); // Release CPU lock when session ends
     }
 
     /** True if this address beeped within the debounce window (no second beep yet). */
@@ -175,6 +179,7 @@ public class SmbService extends Service {
 
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        Log.e(TAG, "onStartCommand called");
         // Notification "Stop" action: tear the server down for good.
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
             stopForeground(STOP_FOREGROUND_REMOVE);
@@ -231,16 +236,27 @@ public class SmbService extends Service {
             }
         });
         mServerThread = new Thread(() -> {
+            Log.i(TAG, "SMB server thread starting");
             try {
                 mServer.start(path, name);
-                sRunning = true;
-                // Advertise the server over mDNS so it shows up in Finder / Windows Network.
-                // Best-effort: SMB keeps running even if discovery fails to start.
-                mMdns = new MdnsAdvertiser(SmbService.this);
-                mMdns.start(name, SmbServer.SMB_PORT);
-                updateNotification();
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to start SMB server", e);
+                // If we reach here, mServer.start() returned normally (unexpected)
+                Log.w(TAG, "SMB server start method returned unexpectedly");
+                sRunning = false;
+                // Cleanup similar to error case
+                if (mMdns != null) {
+                    mMdns.stop();
+                    mMdns = null;
+                }
+                if (mServer != null) {
+                    try {
+                        mServer.stop();
+                    } catch (Exception ex) {
+                        Log.w(TAG, "Error stopping SMB server after start returned", ex);
+                    }
+                    mServer = null;
+                }
+            } catch (Throwable t) {
+                Log.e(TAG, "Failed to start SMB server", t);
                 sRunning = false;
                 // Clean up partially started resources
                 if (mMdns != null) {
@@ -255,6 +271,8 @@ public class SmbService extends Service {
                     }
                     mServer = null;
                 }
+            } finally {
+                Log.i(TAG, "SMB server thread ending");
                 stopForeground(STOP_FOREGROUND_REMOVE);
                 stopSelf();
             }

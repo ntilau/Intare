@@ -12,6 +12,7 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.TextUtils;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -145,6 +146,7 @@ public class MainActivity extends AppCompatActivity {
         if (sharePath.isEmpty()) {
             sharePath = Environment.getExternalStorageDirectory().getAbsolutePath();
         }
+        Log.e("MainActivity", "startServer called with sharePath: " + sharePath);
 
         Intent serviceIntent = new Intent(this, SmbService.class);
         serviceIntent.putExtra(SmbService.EXTRA_SHARE_PATH, sharePath);

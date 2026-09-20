@@ -141,7 +141,7 @@ public class SmbServer {
             // Core: memory + thread pools
             CoreServerConfigSection coreConfig = new CoreServerConfigSection(mConfig);
             coreConfig.setMemoryPool(MEMORY_POOL_SIZES, MEMORY_POOL_INIT, MEMORY_POOL_MAX);
-            coreConfig.setThreadPool(6, 6);
+            coreConfig.setThreadPool(12, 12); // Increased for better handling of chatty SMB1 requests from macOS
             coreConfig.getThreadPool().setDebug(false);
 
             // Global
