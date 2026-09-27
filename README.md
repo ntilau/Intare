@@ -12,6 +12,8 @@ page. Download `Intare-v0.1.apk` and sideload it (you'll need to allow installs 
 unknown sources for the browser/file manager). The app is also easy to build from
 source — see [Building](#building).
 
+> **Note on release signing key rotation**: Starting with the re-release of versions v0.1-v0.3, the release APKs are signed with a new keystore. If you previously sideloaded a version signed with the old key (e.g., from GitHub releases before the key rotation), you must uninstall the existing app before installing the newly signed APK. The same applies when upgrading between versions signed with the new key (they can be installed over each other because they share the same signing key).
+>
 > If you previously sideloaded a **debug** build from source, uninstall it first:
 > the release APK is signed with the project's own release key, so the two can't
 > be installed over one another.
@@ -96,13 +98,9 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ### Syncing files from device
 
-To easily sync folders (like DCIM) from your Android device to your computer, use the provided `sync.sh` script:
+To easily sync folders (like DCIM) from your Android device to your computer, use the provided `.claude` skill located at `.claude/skills/sync-android-folder/`.
 
-```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/ntilau/Intare/refs/heads/main/sync.sh)"
-```
-
-This script:
+This skill:
 - Tries ADB connection first (when device is connected via USB)
 - Falls back to SMB when ADB is not available
 - Preserves file attributes (equivalent to `rsync -rav`)
@@ -112,13 +110,19 @@ This script:
 Usage examples:
 ```bash
 # Sync DCIM folder to ~/DCIM (default)
-./sync.sh
+/skill sync-android-folder
 
 # Sync Pictures folder to ~/Pictures
-./sync.sh Pictures
+/skill sync-android-folder Pictures
 
 # Sync Documents folder to custom location
-./sync.sh Documents /backup/storage
+/skill sync-android-folder Documents /backup/storage
+```
+
+You can also sync folders using the provided .claude skill:
+
+```bash
+/skill sync-android-folder [folder_name] [base_directory]
 ```
 
 To verify the server is listening and advertised:
