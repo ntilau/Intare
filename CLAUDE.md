@@ -130,7 +130,7 @@ Release). The repo is public: github.com/ntilau/Intare.
    ```bash
    git tag v$VERSION && git push origin v$VERSION
    gh release create v$VERSION app/build/outputs/apk/release/Intare-v$VERSION.apk \
-     --title "Intare v$VERSION" --notes "…"
+     --title "Intare v$VERSION" --notes "See git tag v$VERSION for release notes"
    ```
 
 - The signing keystore lives at `~/.claude/intare/release.keystore`, with its password
